@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-
 from django.db import models
-
+import re
 # Create your models here.
 class BookManager(models.Manager):
     def Creator(self, aDictionary ):
-        results = {'errors': [], newbook : None }
-
+        results = {'errors': [] , 'newbook' : None }
+        print ('inside Creator')
         if len(aDictionary['name']) == 0:
             results['errors'].append("Name Cannot be empty")
         if len(aDictionary['name']) > 255:
@@ -18,9 +17,19 @@ class BookManager(models.Manager):
         if len(aDictionary['desc']) > 1000:
             results['errors'].append("Description Cannot be larger than 1000 characters")
 
-            if (len(results['errors']) == 0):
-                results['newbook'] = books(name=aDictionary['name'], desc=aDictionary['desc'])
-                results['newbook'].save()
+        if (len(results['errors']) == 0):
+            print "  Book '{0}' added.".format(aDictionary['name'])
+            abook = books(name=aDictionary['name'], desc=aDictionary['desc'])
+            if (None == abook):
+                results['errors'].append("Unable to create book")
+            else:
+                abook.save()
+                results['newbook'] = abook
+        else:
+            print ('errors in Creator')
+
+            for error in results['errors']:
+                print error
         return results
 
 class books(models.Model):
@@ -33,12 +42,12 @@ class books(models.Model):
         Writers = []
         r = books_authors.objects.filter(book_id=self)
         for each in r:
-            Writers.append(join (each.first_name, each.last_name) )
+            Writers.append( "{0} {1}".format(each.first_name, each.last_name) )
         return Writers
 
 class AuthorManager(models.Manager):
     def Creator(self, aDictionary ):
-        results = {'errors': [], newAuthor : None }
+        results = {'errors': [], 'newAuthor' : None }
         if len(aDictionary['first_name']) < 2:
             results['errors'].append("first name must be 3 or more characters")
         if not (aDictionary['first_name']).isalpha():
@@ -54,8 +63,13 @@ class AuthorManager(models.Manager):
             results['errors'].append("Email is not valid")
 
         if len(results['errors']) == 0:
-            results['newAuthor'] = authors( first_name=aDictionary['first_name'], last_name=aDictionary['last_name'], email=aDictionary['email'] )
-            results['newAuthor'].save()
+            print "  Author '{0} {1}'  added.".format(aDictionary['first_name'], aDictionary['last_name'] )
+            auth = authors(first_name=aDictionary['first_name'], last_name=aDictionary['last_name'], email=aDictionary['email'] )
+            auth.save()
+            results['newAuthor']=auth
+        else:
+            for error in results['errors']:
+                print error
         return results;
 
 class authors(models.Model):
@@ -74,15 +88,19 @@ class authors(models.Model):
 
 class Books_AuthorsManager(models.Manager):
     def Creator(self, aBook, anAuthor ):
-        thisBook = books.objects.get(aBook).first()
-        if (None == thisBook):
+        results = {'errors': [], 'publishedBook' : None }
+        if (None == aBook):
             results['errors'].append("Book does not exist.")
-        thisAuthor = authors.objects.get(anAuthor).first()
-        if (None == thisAuthor):
+        if (None == anAuthor):
             results['errors'].append("Author does not exist.")
-        #TODO, should I switch this to use the discovered values?
         if len(results['errors']) == 0:
-            books_authors( book_id=aBook, author_id=anAuthor )
+            print "No Errors in Books_Authors"
+            newcombo = books_authors(book_id=aBook, author_id=anAuthor)
+            newcombo.save()
+            results['publishedBook'] = newcombo
+        else:
+            for error in results['errors']:
+                print error
         return results;
 
 class books_authors(models.Model):
@@ -92,7 +110,15 @@ class books_authors(models.Model):
     update_at = models.DateTimeField(auto_now=True)
     objects = Books_AuthorsManager()
 
-    # from apps.BookAuthors_app.models import *
-    # fran = authors(first_name="Fran", last_name="Stewart", email="Fran@google.com")
-    # adventure = books(name="BookTitle", desc="Adventures in DnD")
-    # books.objects.all().count()
+"""
+...Example of how to create values at the shell...
+
+from apps.BookAuthors_app.models import *
+fran = authors.objects.Creator({"first_name":"Fran", "last_name":"Stewart", "email":"fran@fran.com"})
+books.objects.count()
+adventure = books.objects.Creator({"name" : "BookTitle", "desc" : "Adventures in DnD"})
+ReleaseParty = books_authors.objects.Creator(adventure['newbook'], fran['newAuthor'])
+print ReleaseParty["errors"]
+print ReleaseParty['publishedBook'].author_id.first_name
+print ReleaseParty['publishedBook'].book_id.name
+"""
